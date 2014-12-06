@@ -1,0 +1,30 @@
+{
+  "name": "mongo-files-js",
+  "version": "0.0.0",
+  "description": "A MongoDB / File based data storage plugin for NodeJS. Organized large data storage.",
+  "main": "main.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "nodeunit test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/four43/mongo-files-js.git"
+  },
+  "keywords": [
+    "mongo",
+    "mongodb",
+    "files",
+    "storage",
+    "database",
+    "cache"
+  ],
+  "author": "Seth Miller",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/four43/mongo-files-js/issues"
+  },
+  "homepage": "https://github.com/four43/mongo-files-js"
+}
