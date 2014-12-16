@@ -26,5 +26,13 @@
   "bugs": {
     "url": "https://github.com/four43/mongo-files-js/issues"
   },
-  "homepage": "https://github.com/four43/mongo-files-js"
+  "homepage": "https://github.com/four43/mongo-files-js",
+  "devDependencies": {
+    "mongodb": "^2.0.0"
+  },
+  "dependencies": {
+    "debug": "^2.1.0",
+    "fs-extra": "^0.12.0",
+    "when": "^3.6.3"
+  }
 }
