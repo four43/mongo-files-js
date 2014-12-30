@@ -47,20 +47,30 @@ exports.testSetup = function (test) {
 };
 
 exports.testWrite = function (test) {
-	test.expect(1);
+	test.expect(3);
+
+	var fileId = 'test-file-a';
 	var tmpPath = path.join(__dirname, 'tmp');
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
 	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'));
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
-			test.done();
+
+		}.bind(this))
+		.then(function () {
+			mongoCollection.findOne({_id: fileId}, function (err, doc) {
+				test.equal(null, err);
+				test.ok(doc);
+				test.done();
+			});
 		}.bind(this));
 };
 
 exports.testRead = function (test) {
 	test.expect(1);
 	var tmpPath = path.join(__dirname, 'tmp');
+	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
 	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'), {hello: "world"});
 	mongoFiles.write(myFile)
@@ -68,9 +78,10 @@ exports.testRead = function (test) {
 			test.ok(writeResults);
 		}.bind(this))
 		.then(function() {
-			return mongoFiles.read(myFile.id, path.join(__dirname, 'files', 'hello-downloaded.txt'));
-		})
+			return mongoFiles.read(myFile.id, dstPath);
+		}.bind(this))
 		.then(function(readFile) {
+			fs.removeSync(dstPath);
 			test.done();
 		})
 };
