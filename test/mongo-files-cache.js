@@ -3,6 +3,7 @@ var fs = require('fs-extra'),
 	MongoDb = require('mongodb'),
 	MongoFiles = require('./../lib/mongo-files'),
 	MongoClient = require('mongodb').MongoClient,
+	Cache = require('./../lib/mongo-files-cache'),
 	path = require('path');
 require('when/es6-shim/Promise');
 
@@ -13,7 +14,7 @@ var mongoDbHandle;
 var mongoCollection;
 var testCollectionName = 'mongo-files-test';
 
-process.on('uncaughtException', function(err) {
+process.on('uncaughtException', function (err) {
 	console.error(err);
 })
 
@@ -28,58 +29,45 @@ exports.setUp = function (setUpDone) {
 
 exports.tearDown = function (tearDownDone) {
 	fs.removeSync(path.join(__dirname, 'tmp'));
-	mongoCollection.deleteMany({}, {}, function(err) {
+	mongoCollection.deleteMany({}, {}, function (err) {
 		mongoDbHandle.close();
 		tearDownDone();
 	});
 	//tearDownDone();
 };
 
-exports.testSetup = function (test) {
+exports.testAttach = function (test) {
 	test.expect(1);
+
 	var tmpPath = path.join(__dirname, 'tmp');
+	var cacheDir = path.join(__dirname, 'cache');
+
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	mongoFiles._setup()
-		.then(function(setupResults) {
-			test.ok(fs.existsSync(setupResults[0]));
-			test.done();
-		});
+	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
+
+	test.ok(File.prototype._isDirectory(cacheDir));
+	test.done();
 };
 
-exports.testWrite = function (test) {
-	test.expect(3);
+exports.testRead = function (test) {
+	test.expect(1);
 
-	var fileId = 'test-file-a';
 	var tmpPath = path.join(__dirname, 'tmp');
+	var cacheDir = path.join(__dirname, 'cache');
+	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
+
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'));
+	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
+
+	var myFile = new File('test-file-a', path.join(__dirname, 'files', 'hello.txt'), {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
 		}.bind(this))
 		.then(function () {
-			mongoCollection.findOne({_id: fileId}, function (err, doc) {
-				test.equal(null, err);
-				test.ok(doc);
-				test.done();
-			});
-		}.bind(this));
-};
-
-exports.testRead = function (test) {
-	test.expect(1);
-	var tmpPath = path.join(__dirname, 'tmp');
-	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'), {hello: "world"});
-	mongoFiles.write(myFile)
-		.then(function (writeResults) {
-			test.ok(writeResults);
+			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
 		}.bind(this))
-		.then(function() {
-			return mongoFiles.read(myFile.id, dstPath);
-		}.bind(this))
-		.then(function(readFile) {
+		.then(function (readFile) {
 			fs.removeSync(dstPath);
 			test.done();
 		})
