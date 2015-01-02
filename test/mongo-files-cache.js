@@ -33,7 +33,6 @@ exports.tearDown = function (tearDownDone) {
 		mongoDbHandle.close();
 		tearDownDone();
 	});
-	//tearDownDone();
 };
 
 exports.testAttach = function (test) {
@@ -50,25 +49,36 @@ exports.testAttach = function (test) {
 };
 
 exports.testRead = function (test) {
-	test.expect(1);
+	test.expect(3);
 
 	var tmpPath = path.join(__dirname, 'tmp');
 	var cacheDir = path.join(__dirname, 'cache');
+	var srcPath = path.join(__dirname, 'files', 'hello.txt');
 	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
 
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
 	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
 
-	var myFile = new File('test-file-a', path.join(__dirname, 'files', 'hello.txt'), {hello: "world"});
+	var myFile = new File('test-file-a', srcPath, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
 		}.bind(this))
 		.then(function () {
+			//Initial Read, will be in cache when this is done.
 			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
 		}.bind(this))
 		.then(function (readFile) {
+			test.ok(fs.statSync(dstPath));
 			fs.removeSync(dstPath);
+		})
+		.then(function() {
+			mongoFiles.dbFilePath = null;
+			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
+		})
+		.then(function (readFile) {
+			test.equal(path.join(cacheDir, 'test-file-a'), myFile.path);
+			fs.removeSync(cacheDir);
 			test.done();
 		})
 };
