@@ -28,7 +28,7 @@ exports.setUp = function (setUpDone) {
 };
 
 exports.tearDown = function (tearDownDone) {
-	fs.removeSync(path.join(__dirname, 'tmp'));
+	fs.removeSync(path.join(__dirname, 'storage'));
 	mongoCollection.deleteMany({}, {}, function (err) {
 		mongoDbHandle.close();
 		tearDownDone();
@@ -38,25 +38,55 @@ exports.tearDown = function (tearDownDone) {
 exports.testAttach = function (test) {
 	test.expect(1);
 
-	var tmpPath = path.join(__dirname, 'tmp');
+	var storagePath = path.join(__dirname, 'storage');
 	var cacheDir = path.join(__dirname, 'cache');
 
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
 	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
 
 	test.ok(File.prototype._isDirectory(cacheDir));
 	test.done();
 };
 
-exports.testRead = function (test) {
-	test.expect(3);
+exports.testWrite = function (test) {
+	test.expect(2);
 
-	var tmpPath = path.join(__dirname, 'tmp');
+	var storagePath = path.join(__dirname, 'storage');
 	var cacheDir = path.join(__dirname, 'cache');
 	var srcPath = path.join(__dirname, 'files', 'hello.txt');
 	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
 
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
+
+	var myFile = new File('test-file-a', srcPath, {hello: "world"});
+	mongoFiles.write(myFile, {cacheAllowed: true})
+		.then(function (writeResults) {
+			test.ok(writeResults);
+		}.bind(this))
+		.then(function() {
+			//Should be in cache, ensure dbFilePath is messed up so we can't hit the real db.
+			mongoFiles.dbFilePath = null;
+			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
+		})
+		.then(function (readFile) {
+			//Ensure the path is set to the cache.
+			test.equal(path.join(cacheDir, 'test-file-a'), myFile.path);
+			fs.removeSync(cacheDir);
+			test.done();
+		})
+};
+
+
+exports.testRead = function (test) {
+	test.expect(3);
+
+	var storagePath = path.join(__dirname, 'storage');
+	var cacheDir = path.join(__dirname, 'cache');
+	var srcPath = path.join(__dirname, 'files', 'hello.txt');
+	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
+
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
 	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
 
 	var myFile = new File('test-file-a', srcPath, {hello: "world"});
@@ -69,14 +99,17 @@ exports.testRead = function (test) {
 			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
 		}.bind(this))
 		.then(function (readFile) {
+			//Ensure file got there, then remove it.
 			test.ok(fs.statSync(dstPath));
 			fs.removeSync(dstPath);
 		})
 		.then(function() {
+			//Try and fetch it again, ensure dbFilePath is messed up so we can't hit the real db.
 			mongoFiles.dbFilePath = null;
 			return mongoFiles.read(myFile.id, dstPath, {cacheAllowed: true});
 		})
 		.then(function (readFile) {
+			//Ensure the path is set to the cache.
 			test.equal(path.join(cacheDir, 'test-file-a'), myFile.path);
 			fs.removeSync(cacheDir);
 			test.done();
@@ -89,7 +122,6 @@ function getMongoClient(dsn) {
 			if (err) {
 				reject(err);
 			}
-			console.log("Connected correctly to server");
 			resolve(db);
 		});
 	});

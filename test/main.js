@@ -1,5 +1,5 @@
-var fs = require('fs-extra'),
-	File = require('./../lib/file'),
+var File = require('./../lib/file'),
+	fs = require('fs-extra'),
 	MongoDb = require('mongodb'),
 	MongoFiles = require('./../lib/mongo-files'),
 	MongoClient = require('mongodb').MongoClient,
@@ -13,9 +13,9 @@ var mongoDbHandle;
 var mongoCollection;
 var testCollectionName = 'mongo-files-test';
 
-process.on('uncaughtException', function(err) {
+process.on('uncaughtException', function (err) {
 	console.error(err);
-})
+});
 
 exports.setUp = function (setUpDone) {
 	getMongoClient('mongodb://localhost:27017/mongo-files-test')
@@ -27,8 +27,8 @@ exports.setUp = function (setUpDone) {
 };
 
 exports.tearDown = function (tearDownDone) {
-	fs.removeSync(path.join(__dirname, 'tmp'));
-	mongoCollection.deleteMany({}, {}, function(err) {
+	fs.removeSync(path.join(__dirname, 'storage'));
+	mongoCollection.deleteMany({}, {}, function (err) {
 		mongoDbHandle.close();
 		tearDownDone();
 	});
@@ -37,10 +37,10 @@ exports.tearDown = function (tearDownDone) {
 
 exports.testSetup = function (test) {
 	test.expect(1);
-	var tmpPath = path.join(__dirname, 'tmp');
+	var tmpPath = path.join(__dirname, 'storage');
 	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
 	mongoFiles._setup()
-		.then(function(setupResults) {
+		.then(function (setupResults) {
 			test.ok(fs.existsSync(setupResults[0]));
 			test.done();
 		});
@@ -50,9 +50,9 @@ exports.testWrite = function (test) {
 	test.expect(3);
 
 	var fileId = 'test-file-a';
-	var tmpPath = path.join(__dirname, 'tmp');
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'));
+	var storagePath = path.join(__dirname, 'storage');
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var myFile = new File('test-file-a', path.join(__dirname, 'files', 'hello.txt'));
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
@@ -68,18 +68,21 @@ exports.testWrite = function (test) {
 
 exports.testRead = function (test) {
 	test.expect(1);
-	var tmpPath = path.join(__dirname, 'tmp');
+
+	var storagePath = path.join(__dirname, 'storage');
+	var srcDirectory = path.join(__dirname, 'files', 'hello.txt');
 	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	var myFile = new File('test-file-a', path.join(__dirname, 'files','hello.txt'), {hello: "world"});
+
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var myFile = new File('test-file-a', srcDirectory, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
 		}.bind(this))
-		.then(function() {
+		.then(function () {
 			return mongoFiles.read(myFile.id, dstPath);
 		}.bind(this))
-		.then(function(readFile) {
+		.then(function (readFile) {
 			fs.removeSync(dstPath);
 			test.done();
 		})
@@ -91,7 +94,6 @@ function getMongoClient(dsn) {
 			if (err) {
 				reject(err);
 			}
-			console.log("Connected correctly to server");
 			resolve(db);
 		});
 	});
