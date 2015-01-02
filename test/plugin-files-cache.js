@@ -3,7 +3,7 @@ var fs = require('fs-extra'),
 	MongoDb = require('mongodb'),
 	MongoFiles = require('./../lib/mongo-files'),
 	MongoClient = require('mongodb').MongoClient,
-	Cache = require('./../lib/mongo-files-cache'),
+	Cache = require('./../lib/plugins/file-cache'),
 	path = require('path');
 require('when/es6-shim/Promise');
 
