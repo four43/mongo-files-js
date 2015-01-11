@@ -16,7 +16,7 @@ var testCollectionName = 'mongo-files-test';
 
 process.on('uncaughtException', function (err) {
 	console.error(err);
-})
+});
 
 exports.setUp = function (setUpDone) {
 	getMongoClient('mongodb://localhost:27017/mongo-files-test')
@@ -44,7 +44,7 @@ exports.testAttach = function (test) {
 	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
 	var mongoFilesCache = new Cache(cacheDir, mongoFiles);
 
-	test.ok(File.prototype._isDirectory(cacheDir));
+	test.ok(File.prototype.isDirectory(cacheDir));
 	test.done();
 };
 

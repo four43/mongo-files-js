@@ -1,8 +1,11 @@
-var File = require('./../lib/file'),
-	fs = require('fs-extra'),
+var fs = require('fs-extra'),
+	fstream = require('fstream'),
+	File = require('./../lib/file'),
 	MongoDb = require('mongodb'),
 	MongoFiles = require('./../lib/mongo-files'),
 	MongoClient = require('mongodb').MongoClient,
+	tar = require('tar'),
+	TarDir = require('./../lib/plugins/tar-directory'),
 	path = require('path');
 require('when/es6-shim/Promise');
 
@@ -32,16 +35,26 @@ exports.tearDown = function (tearDownDone) {
 		mongoDbHandle.close();
 		tearDownDone();
 	});
-	//tearDownDone();
 };
 
-exports.testSetup = function (test) {
-	test.expect(1);
-	var tmpPath = path.join(__dirname, 'storage');
-	var mongoFiles = new MongoFiles(mongoCollection, tmpPath);
-	mongoFiles._setup()
-		.then(function (setupResults) {
-			test.ok(fs.existsSync(setupResults[0]));
+exports.testAttach = function (test) {
+	var storagePath = path.join(__dirname, 'storage');
+
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var tarDir = new TarDir(mongoFiles);
+
+	test.done();
+};
+
+exports.sanityCheck = function(test) {
+	var srcPath = path.join(__dirname, 'files', 'group');
+	var storagePath = path.join(__dirname, 'files', 'sanity.tar');
+
+	var reader = fstream.Reader(srcPath);
+	var packStream = tar.Pack({ noProprietary: true });
+	var writer = fs.createWriteStream(storagePath);
+	reader.pipe(packStream).pipe(writer)
+		.on('finish', function() {
 			test.done();
 		});
 };
@@ -49,45 +62,53 @@ exports.testSetup = function (test) {
 exports.testWrite = function (test) {
 	test.expect(4);
 
-	var fileId = 'test-file-a';
 	var storagePath = path.join(__dirname, 'storage');
-	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
-	var myFile = new File('test-file-a', path.join(__dirname, 'files', 'hello.txt'));
+	var srcPath = path.join(__dirname, 'files', 'group');
 
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var tarDir = new TarDir(mongoFiles);
+
+	var myFile = new File('group-folder', srcPath, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
-			test.ok(fs.statSync(path.join(storagePath, fileId)));
-		}.bind(this))
-		.then(function () {
-			mongoCollection.findOne({_id: fileId}, function (err, doc) {
-				test.equal(null, err);
-				test.ok(doc);
-				test.done();
-			});
+			test.equal(true, myFile.getPluginVar(tarDir.PLUGIN_NAMESPACE, 'tarred'));
+
+			var fileStats = fs.statSync(path.join(storagePath, myFile.id));
+			test.ok(fileStats);
+			test.ok(fileStats.size > 0);
+			test.done();
 		}.bind(this));
 };
 
 exports.testRead = function (test) {
-	test.expect(1);
+	test.expect(4);
 
 	var storagePath = path.join(__dirname, 'storage');
-	var srcDirectory = path.join(__dirname, 'files', 'hello.txt');
-	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
+	var srcPath = path.join(__dirname, 'files', 'group');
+	var dstPath = path.join(__dirname, 'files', 'group-downloaded');
 
 	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
-	var myFile = new File('test-file-a', srcDirectory, {hello: "world"});
+	var tarDir = new TarDir(mongoFiles);
+
+	var myFile = new File('group-folder', srcPath, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
+			test.equal(true, myFile.getPluginVar(tarDir.PLUGIN_NAMESPACE, 'tarred'));
+			test.ok(fs.statSync(path.join(storagePath, myFile.id)));
 		}.bind(this))
 		.then(function () {
+			//Initial Read, will be in cache when this is done.
 			return mongoFiles.read(myFile.id, dstPath);
 		}.bind(this))
 		.then(function (readFile) {
+			//Ensure file got there, then remove it.
+			test.ok(fs.statSync(dstPath));
+			//@todo Look for individual files.
 			fs.removeSync(dstPath);
 			test.done();
-		})
+		});
 };
 
 function getMongoClient(dsn) {
