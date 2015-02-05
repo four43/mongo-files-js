@@ -2,11 +2,10 @@ var crypto = require('crypto'),
 	fs = require('fs-extra'),
 	fstream = require('fstream'),
 	File = require('./../lib/file'),
-	MongoDb = require('mongodb'),
+	Gzip = require('./../lib/plugins/gzip'),
 	MongoFiles = require('./../lib/mongo-files'),
 	MongoClient = require('mongodb').MongoClient,
 	tar = require('tar'),
-	TarDir = require('./../lib/plugins/tar-directory'),
 	path = require('path');
 require('when/es6-shim/Promise');
 
@@ -22,7 +21,7 @@ process.on('uncaughtException', function (err) {
 });
 
 exports.setUp = function (setUpDone) {
-	getMongoClient('mongodb://localhost:27017/mongo-files-test')
+	getMongoClient('mongodb://localhost:27017/'+testCollectionName)
 		.then(function (mongoDbHandleTmp) {
 			mongoDbHandle = mongoDbHandleTmp;
 			mongoCollection = mongoDbHandle.collection('test-files');
@@ -42,39 +41,25 @@ exports.testAttach = function (test) {
 	var storagePath = path.join(__dirname, 'storage');
 
 	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
-	var tarDir = new TarDir(mongoFiles);
+	var gZip = new Gzip(mongoFiles);
 
 	test.done();
-};
-
-exports.sanityCheck = function(test) {
-	var srcPath = path.join(__dirname, 'files', 'group');
-	var storagePath = path.join(__dirname, 'files', 'sanity.tar');
-
-	var reader = fstream.Reader(srcPath);
-	var packStream = tar.Pack({ noProprietary: true });
-	var writer = fs.createWriteStream(storagePath);
-	reader.pipe(packStream).pipe(writer)
-		.on('finish', function() {
-			fs.removeSync(storagePath);
-			test.done();
-		});
 };
 
 exports.testWrite = function (test) {
 	test.expect(5);
 
 	var storagePath = path.join(__dirname, 'storage');
-	var srcPath = path.join(__dirname, 'files', 'group');
+	var srcPath = path.join(__dirname, 'files', 'hello.txt');
 
 	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
-	var tarDir = new TarDir(mongoFiles);
+	var gZip = new Gzip(mongoFiles);
 
-	var myFile = new File('group-folder', srcPath, {hello: "world"});
+	var myFile = new File('hello-zip', srcPath, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
-			test.equal(true, myFile.getPluginVar(tarDir.PLUGIN_NAMESPACE, 'tarred'));
+			test.equal(true, myFile.getPluginVar(gZip.PLUGIN_NAMESPACE, 'gzipped'));
 
 			var fileStats = fs.statSync(path.join(storagePath, myFile.id));
 			test.ok(fileStats);
@@ -82,7 +67,7 @@ exports.testWrite = function (test) {
 			return writeResults;
 		}.bind(this))
 		.then(function(writeResults) {
-			return compareHash(path.join(storagePath, myFile.id), 'cb69ccd9a599141da11b4228728c83ce4a3e745d', test);
+			return compareHash(path.join(storagePath, myFile.id), '5b7c694f603fd34b4620ce841735bfa8cfca23e9', test);
 		})
 		.then(function(compareResults) {
 			test.done();
@@ -90,20 +75,20 @@ exports.testWrite = function (test) {
 };
 
 exports.testRead = function (test) {
-	test.expect(8);
+	test.expect(5);
 
 	var storagePath = path.join(__dirname, 'storage');
-	var srcPath = path.join(__dirname, 'files', 'group');
-	var dstPath = path.join(__dirname, 'files', 'group-downloaded');
+	var srcPath = path.join(__dirname, 'files', 'hello.txt');
+	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
 
 	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
-	var tarDir = new TarDir(mongoFiles);
+	var gZip = new Gzip(mongoFiles);
 
-	var myFile = new File('group-folder', srcPath, {hello: "world"});
+	var myFile = new File('hello-zipped', srcPath, {hello: "world"});
 	mongoFiles.write(myFile)
 		.then(function (writeResults) {
 			test.ok(writeResults);
-			test.equal(true, myFile.getPluginVar(tarDir.PLUGIN_NAMESPACE, 'tarred'));
+			test.equal(true, myFile.getPluginVar(gZip.PLUGIN_NAMESPACE, 'gzipped'));
 			test.ok(fs.statSync(path.join(storagePath, myFile.id)));
 		}.bind(this))
 		.then(function () {
@@ -116,15 +101,7 @@ exports.testRead = function (test) {
 			return dstPath;
 		}.bind(this))
 		.then(function(dstPath) {
-			var hashChecks = [];
-			var expectedHashes = ['4c41332c5980e7514518fcddd48be69f0fdd590b', '0ed1fc3688464e0eba7b74cf5fe8265138103594'];
-			var filePaths = fs.readdirSync(dstPath);
-			for(var i in filePaths) {
-				var filePath = path.join(dstPath, filePaths[i]);
-				test.ok(fs.statSync(filePath));
-				hashChecks.push(compareHash(filePath, expectedHashes[i], test));
-			}
-			return Promise.all(hashChecks);
+			return compareHash(path.join(storagePath, myFile.id), '5b7c694f603fd34b4620ce841735bfa8cfca23e9', test);
 		}.bind(this))
 		.then(function(results) {
 			fs.removeSync(dstPath);

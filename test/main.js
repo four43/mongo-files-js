@@ -46,7 +46,7 @@ exports.testSetup = function (test) {
 		});
 };
 
-exports.testWrite = function (test) {
+testWrite = function (test) {
 	test.expect(4);
 
 	var fileId = 'test-file-a';
@@ -68,7 +68,7 @@ exports.testWrite = function (test) {
 		}.bind(this));
 };
 
-exports.testRead = function (test) {
+testRead = function (test) {
 	test.expect(1);
 
 	var storagePath = path.join(__dirname, 'storage');
@@ -85,6 +85,28 @@ exports.testRead = function (test) {
 			return mongoFiles.read(myFile.id, dstPath);
 		}.bind(this))
 		.then(function (readFile) {
+			fs.removeSync(dstPath);
+			test.done();
+		})
+};
+
+exports.testFind = function(test) {
+
+	var storagePath = path.join(__dirname, 'storage');
+	var srcDirectory = path.join(__dirname, 'files', 'hello.txt');
+	var dstPath = path.join(__dirname, 'files', 'hello-downloaded.txt');
+
+	var mongoFiles = new MongoFiles(mongoCollection, storagePath);
+	var myFile = new File('test-file-a', srcDirectory, {hello: "world"});
+	mongoFiles.write(myFile)
+		.then(function (writeResults) {
+			test.ok(writeResults);
+		}.bind(this))
+		.then(function () {
+			return mongoFiles.find({'meta.hello':'world'});
+		}.bind(this))
+		.then(function (docs) {
+			test.ok((docs[0].id === 'test-file-a'), 'Returned doc id was incorrect');
 			fs.removeSync(dstPath);
 			test.done();
 		})
